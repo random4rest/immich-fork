@@ -22,6 +22,12 @@ This file lives in the **source repo**. There are two sibling repos on the host:
 
 Never put deployment-specific files (`docker-compose.yml`, `.env`, photos, Postgres data) in `immich-src`. Never put source code in `immich-app`.
 
+Sibling docs in this repo:
+
+- [`README.md`](./README.md) — the upstream Immich README, plus the fork header pointing at this file and the changelog.
+- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — full codebase tour.
+- [`CHANGELOG.fork.md`](./CHANGELOG.fork.md) — running list of every customization in this fork.
+
 ---
 
 ## 2. Git remotes & branches
@@ -119,7 +125,7 @@ git merge --no-ff feature/<short-name>
 git branch -d feature/<short-name>
 ```
 
-Then tag a build (see §5 below) and deploy.
+Then **add an entry to [`CHANGELOG.fork.md`](./CHANGELOG.fork.md)** under `[Unreleased]`, tag a build (see §5 below), and deploy.
 
 ---
 

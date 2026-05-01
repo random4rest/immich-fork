@@ -1,133 +1,94 @@
-<p align="center"> 
+<p align="center">
+  <img src="design/immich-logo-stacked-light.svg" width="220" alt="Immich logo" />
+</p>
+
+<h1 align="center">Immich · <code>random4rest</code> fork</h1>
+
+<p align="center">
+  My personal homelab build of <a href="https://github.com/immich-app/immich">Immich</a> — the high-performance, self-hosted photo &amp; video manager.
   <br/>
-  <a href="https://opensource.org/license/agpl-v3"><img src="https://img.shields.io/badge/License-AGPL_v3-blue.svg?color=3F51B5&style=for-the-badge&label=License&logoColor=000000&labelColor=ececec" alt="License: AGPLv3"></a>
-  <a href="https://discord.immich.app">
-    <img src="https://img.shields.io/discord/979116623879368755.svg?label=Discord&logo=Discord&style=for-the-badge&logoColor=000000&labelColor=ececec" alt="Discord"/>
-  </a>
-  <br/>
-  <br/>
+  Custom features welded on top, upstream releases merged in regularly.
 </p>
 
 <p align="center">
-<img src="design/immich-logo-stacked-light.svg" width="300" title="Login With Custom URL">
+  <a href="https://github.com/immich-app/immich"><img alt="Forked from immich-app/immich" src="https://img.shields.io/badge/forked%20from-immich--app%2Fimmich-1f6feb?style=for-the-badge&logo=github&logoColor=white"></a>
+  <a href="https://opensource.org/license/agpl-v3"><img alt="License AGPL v3" src="https://img.shields.io/badge/license-AGPL%20v3-3F51B5?style=for-the-badge"></a>
+  <a href="https://github.com/random4rest/immich-fork/commits/personal"><img alt="Last commit" src="https://img.shields.io/github/last-commit/random4rest/immich-fork/personal?style=for-the-badge&color=8a3ffc"></a>
+  <a href="./CHANGELOG.fork.md"><img alt="Fork changelog" src="https://img.shields.io/badge/fork-changelog-ff6b6b?style=for-the-badge"></a>
 </p>
-<h3 align="center">High performance self-hosted photo and video management solution</h3>
-<br/>
-<a href="https://immich.app">
-<img src="design/immich-screenshots.png" title="Main Screenshot">
-</a>
-<br/>
 
 <p align="center">
-  <a href="readme_i18n/README_ca_ES.md">Català</a>
-  <a href="readme_i18n/README_es_ES.md">Español</a>
-  <a href="readme_i18n/README_fr_FR.md">Français</a>
-  <a href="readme_i18n/README_it_IT.md">Italiano</a>
-  <a href="readme_i18n/README_ja_JP.md">日本語</a>
-  <a href="readme_i18n/README_ko_KR.md">한국어</a>
-  <a href="readme_i18n/README_de_DE.md">Deutsch</a>
-  <a href="readme_i18n/README_nl_NL.md">Nederlands</a>
-  <a href="readme_i18n/README_tr_TR.md">Türkçe</a>
-  <a href="readme_i18n/README_zh_CN.md">简体中文</a>
-  <a href="readme_i18n/README_zh_TW.md">正體中文</a>
-  <a href="readme_i18n/README_uk_UA.md">Українська</a>
-  <a href="readme_i18n/README_ru_RU.md">Русский</a>
-  <a href="readme_i18n/README_pt_BR.md">Português Brasileiro</a>
-  <a href="readme_i18n/README_sv_SE.md">Svenska</a>
-  <a href="readme_i18n/README_ar_JO.md">العربية</a>
-  <a href="readme_i18n/README_vi_VN.md">Tiếng Việt</a>
-  <a href="readme_i18n/README_th_TH.md">ภาษาไทย</a>
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white">
+  <img alt="NestJS" src="https://img.shields.io/badge/NestJS-E0234E?style=flat-square&logo=nestjs&logoColor=white">
+  <img alt="SvelteKit" src="https://img.shields.io/badge/SvelteKit-FF3E00?style=flat-square&logo=svelte&logoColor=white">
+  <img alt="Flutter" src="https://img.shields.io/badge/Flutter-02569B?style=flat-square&logo=flutter&logoColor=white">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white">
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white">
+  <img alt="Postgres" src="https://img.shields.io/badge/Postgres%20%2B%20vectorchord-336791?style=flat-square&logo=postgresql&logoColor=white">
+  <img alt="Redis" src="https://img.shields.io/badge/Redis-DC382D?style=flat-square&logo=redis&logoColor=white">
+  <img alt="Docker" src="https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white">
+  <img alt="NVIDIA CUDA" src="https://img.shields.io/badge/CUDA-RTX%204070-76B900?style=flat-square&logo=nvidia&logoColor=white">
+  <img alt="Tailscale" src="https://img.shields.io/badge/access-Tailscale-242424?style=flat-square&logo=tailscale&logoColor=white">
 </p>
 
+---
 
-> [!WARNING]
-> ⚠️ Always follow [3-2-1](https://www.backblaze.com/blog/the-3-2-1-backup-strategy/) backup plan for your precious photos and videos!
-> 
- 
+## Why this fork exists
 
-> [!NOTE]
-> You can find the main documentation, including installation guides, at https://immich.app/.
+I run Immich on my own hardware as my full photo library. Vanilla Immich is excellent, but a few personal itches needed scratching:
 
-## Links
+- I want **custom UI tweaks** that aren't likely to land upstream (or aren't worth the review cycle).
+- I want a **reproducible deploy** where every running container traces back to one git tag.
+- I want to **stay current with official releases** instead of stagnating on a snowflake build.
 
-- [Documentation](https://docs.immich.app/)
-- [About](https://docs.immich.app/overview/introduction)
-- [Installation](https://docs.immich.app/install/requirements)
-- [Roadmap](https://immich.app/roadmap)
-- [Demo](#demo)
-- [Features](#features)
-- [Translations](https://docs.immich.app/developer/translations)
-- [Contributing](https://docs.immich.app/overview/support-the-project)
+This repo is the result. The `personal` branch is what's deployed; everything fork-specific is prefixed `[fork]` in the commit log so it stays trivially auditable when merging upstream releases.
 
-## Demo
+> **Looking for the actual product?** Head to [**immich-app/immich**](https://github.com/immich-app/immich) · [**docs.immich.app**](https://docs.immich.app/) · [**immich.app**](https://immich.app). All credit for the platform goes to the Immich team and contributors. ❤️
 
-Access the demo [here](https://demo.immich.app). For the mobile app, you can use `https://demo.immich.app` for the `Server Endpoint URL`.
+---
 
-### Login credentials
+## Quick start
 
-| Email           | Password |
-| --------------- | -------- |
-| demo@immich.app | demo     |
+> **Full workflow lives in [`AGENTS.md`](./AGENTS.md).** This is the one-screen version.
 
-## Features
+```bash
+# 1. Clone the fork (full history; do NOT use --depth=1 — see AGENTS.md §7)
+git clone git@github.com:random4rest/immich-fork.git
+cd immich-fork
+git checkout personal
 
-| Features                                     | Mobile | Web |
-| :------------------------------------------- | ------ | --- |
-| Upload and view videos and photos            | Yes    | Yes |
-| Auto backup when the app is opened           | Yes    | N/A |
-| Prevent duplication of assets                | Yes    | Yes |
-| Selective album(s) for backup                | Yes    | N/A |
-| Download photos and videos to local device   | Yes    | Yes |
-| Multi-user support                           | Yes    | Yes |
-| Album and Shared albums                      | Yes    | Yes |
-| Scrubbable/draggable scrollbar               | Yes    | Yes |
-| Support raw formats                          | Yes    | Yes |
-| Metadata view (EXIF, map)                    | Yes    | Yes |
-| Search by metadata, objects, faces, and CLIP | Yes    | Yes |
-| Administrative functions (user management)   | No     | Yes |
-| Background backup                            | Yes    | N/A |
-| Virtual scroll                               | Yes    | Yes |
-| OAuth support                                | Yes    | Yes |
-| API Keys                                     | N/A    | Yes |
-| LivePhoto/MotionPhoto backup and playback    | Yes    | Yes |
-| Support 360 degree image display             | No     | Yes |
-| User-defined storage structure               | Yes    | Yes |
-| Public Sharing                               | Yes    | Yes |
-| Archive and Favorites                        | Yes    | Yes |
-| Global Map                                   | Yes    | Yes |
-| Partner Sharing                              | Yes    | Yes |
-| Facial recognition and clustering            | Yes    | Yes |
-| Memories (x years ago)                       | Yes    | Yes |
-| Offline support                              | Yes    | No  |
-| Read-only gallery                            | Yes    | Yes |
-| Stacked Photos                               | Yes    | Yes |
-| Tags                                         | No     | Yes |
-| Folder View                                  | Yes    | Yes |
+# 2. Hack on it with hot-reload
+cd docker
+cp example.env .env       # set UPLOAD_LOCATION + DB_PASSWORD
+docker compose -f docker-compose.dev.yml up --build
+# web    -> http://localhost:3000
+# api    -> http://localhost:2283
+# ml     -> http://localhost:3003
 
-## Translations
+# 3. Ship a tagged build
+git tag personal-v1.XYZ.0-1
+git push --follow-tags origin personal
+# CI (or your local docker build) produces:
+#   ghcr.io/random4rest/immich-server:personal-v1.XYZ.0-1
+#   ghcr.io/random4rest/immich-machine-learning:personal-v1.XYZ.0-1-cuda
 
-Read more about translations [here](https://docs.immich.app/developer/translations).
+# 4. Roll prod (in the sibling immich-app repo)
+cd ../../immich-app
+sed -i 's/^IMMICH_VERSION=.*/IMMICH_VERSION=personal-v1.XYZ.0-1/' .env
+docker compose pull && docker compose up -d
+```
 
-<a href="https://hosted.weblate.org/engage/immich/">
-<img src="https://hosted.weblate.org/widget/immich/immich/multi-auto.svg" alt="Translation status" />
-</a>
+---
 
-## Repository activity
+## Staying in sync with upstream
 
-![Activities](https://repobeats.axiom.co/api/embed/9e86d9dc3ddd137161f2f6d2e758d7863b1789cb.svg "Repobeats analytics image")
+Every week-ish:
 
-## Star history
+```bash
+git fetch upstream --tags
+git checkout personal
+git merge vX.Y.Z          # the latest official release tag
+# resolve conflicts, run the dev stack, tag a new build, deploy
+```
 
-<a href="https://star-history.com/#immich-app/immich&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=immich-app/immich&type=date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=immich-app/immich&type=date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=immich-app/immich&type=date" width="100%" />
- </picture>
-</a>
-
-## Contributors
-
-<a href="https://github.com/immich-app/immich/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=immich-app/immich" width="100%"/>
-</a>
+Detailed merge procedure (with conflict-resolution strategy) in [`AGENTS.md` §4](./AGENTS.md#4-pulling-new-upstream-releases).
