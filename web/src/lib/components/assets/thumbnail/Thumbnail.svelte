@@ -84,6 +84,11 @@
 
   let assetOwner = $derived(albumUsers?.find((user) => user.id === asset.ownerId) ?? null);
 
+  // Cache key for the thumbnail/preview/playback URLs. Includes `editVersion` (bumped after a
+  // non-destructive edit like rotate) so the URL changes — and the browser refetches —
+  // even when the perceptual `thumbhash` happens to be identical (e.g. small or symmetric image).
+  let assetCacheKey = $derived(asset.editVersion ? `${asset.thumbhash ?? ''}-${asset.editVersion}` : asset.thumbhash);
+
   const onIconClickedHandler = (e?: MouseEvent) => {
     e?.stopPropagation();
     e?.preventDefault();
@@ -248,62 +253,64 @@
         { 'rounded-xl': selected },
       ]}
     >
-      <ImageThumbnail
-        class={[
-          'absolute group-focus-visible:rounded-lg transition-[border-radius]',
-          { 'rounded-xl': selected },
-          imageClass,
-        ]}
-        brokenAssetClass={[
-          'z-1 absolute group-focus-visible:rounded-lg transition-[border-radius]',
-          { 'rounded-xl': selected },
-          brokenAssetClass,
-        ]}
-        url={getAssetMediaUrl({ id: asset.id, size: AssetMediaSize.Thumbnail, cacheKey: asset.thumbhash })}
-        altText={$getAltText(asset)}
-        widthStyle="{width}px"
-        heightStyle="{height}px"
-        curve={selected}
-        onComplete={(errored) => ((loaded = true), (thumbError = errored))}
-      />
-      {#if asset.isVideo}
-        <div class="absolute h-full w-full pointer-events-none group-focus-visible:rounded-lg">
-          <VideoThumbnail
-            class="group-focus-visible:rounded-lg"
-            url={getAssetPlaybackUrl({ id: asset.id, cacheKey: asset.thumbhash })}
-            enablePlayback={mouseOver && $playVideoThumbnailOnHover}
-            curve={selected}
-            durationInSeconds={asset.duration ? asset.duration / 1000 : 0}
-            playbackOnIconHover={!$playVideoThumbnailOnHover}
-          />
-        </div>
-      {:else if asset.isImage && asset.livePhotoVideoId}
-        <div class="absolute h-full w-full pointer-events-none group-focus-visible:rounded-lg">
-          <VideoThumbnail
-            class="group-focus-visible:rounded-lg"
-            url={getAssetPlaybackUrl({ id: asset.livePhotoVideoId, cacheKey: asset.thumbhash })}
-            enablePlayback={mouseOver && $playVideoThumbnailOnHover}
-            pauseIcon={mdiMotionPauseOutline}
-            playIcon={mdiMotionPlayOutline}
-            showTime={false}
-            curve={selected}
-            playbackOnIconHover={!$playVideoThumbnailOnHover}
-          />
-        </div>
-      {:else if asset.isImage && asset.duration && mouseOver}
-        <!-- GIF -->
-        <div class="absolute h-full w-full pointer-events-none">
-          <ImageThumbnail
-            class={imageClass}
-            {brokenAssetClass}
-            url={getAssetMediaUrl({ id: asset.id, size: AssetMediaSize.Original, cacheKey: asset.thumbhash })}
-            altText={$getAltText(asset)}
-            widthStyle="{width}px"
-            heightStyle="{height}px"
-            curve={selected}
-          />
-        </div>
-      {/if}
+      {#key assetCacheKey}
+        <ImageThumbnail
+          class={[
+            'absolute group-focus-visible:rounded-lg transition-[border-radius]',
+            { 'rounded-xl': selected },
+            imageClass,
+          ]}
+          brokenAssetClass={[
+            'z-1 absolute group-focus-visible:rounded-lg transition-[border-radius]',
+            { 'rounded-xl': selected },
+            brokenAssetClass,
+          ]}
+          url={getAssetMediaUrl({ id: asset.id, size: AssetMediaSize.Thumbnail, cacheKey: assetCacheKey })}
+          altText={$getAltText(asset)}
+          widthStyle="{width}px"
+          heightStyle="{height}px"
+          curve={selected}
+          onComplete={(errored) => ((loaded = true), (thumbError = errored))}
+        />
+        {#if asset.isVideo}
+          <div class="absolute h-full w-full pointer-events-none group-focus-visible:rounded-lg">
+            <VideoThumbnail
+              class="group-focus-visible:rounded-lg"
+              url={getAssetPlaybackUrl({ id: asset.id, cacheKey: assetCacheKey })}
+              enablePlayback={mouseOver && $playVideoThumbnailOnHover}
+              curve={selected}
+              durationInSeconds={asset.duration ? asset.duration / 1000 : 0}
+              playbackOnIconHover={!$playVideoThumbnailOnHover}
+            />
+          </div>
+        {:else if asset.isImage && asset.livePhotoVideoId}
+          <div class="absolute h-full w-full pointer-events-none group-focus-visible:rounded-lg">
+            <VideoThumbnail
+              class="group-focus-visible:rounded-lg"
+              url={getAssetPlaybackUrl({ id: asset.livePhotoVideoId, cacheKey: assetCacheKey })}
+              enablePlayback={mouseOver && $playVideoThumbnailOnHover}
+              pauseIcon={mdiMotionPauseOutline}
+              playIcon={mdiMotionPlayOutline}
+              showTime={false}
+              curve={selected}
+              playbackOnIconHover={!$playVideoThumbnailOnHover}
+            />
+          </div>
+        {:else if asset.isImage && asset.duration && mouseOver}
+          <!-- GIF -->
+          <div class="absolute h-full w-full pointer-events-none">
+            <ImageThumbnail
+              class={imageClass}
+              {brokenAssetClass}
+              url={getAssetMediaUrl({ id: asset.id, size: AssetMediaSize.Original, cacheKey: assetCacheKey })}
+              altText={$getAltText(asset)}
+              widthStyle="{width}px"
+              heightStyle="{height}px"
+              curve={selected}
+            />
+          </div>
+        {/if}
+      {/key}
 
       {#if (!loaded || thumbError) && asset.thumbhash}
         <Thumbhash
