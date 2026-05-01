@@ -1,30 +1,38 @@
 import type { AssetMultiSelectManager } from '$lib/managers/asset-multi-select-manager.svelte';
 import { authManager } from '$lib/managers/auth-manager.svelte';
 import { downloadManager } from '$lib/managers/download-manager.svelte';
+import { eventManager } from '$lib/managers/event-manager.svelte';
 import { TimelineManager } from '$lib/managers/timeline-manager/timeline-manager.svelte';
 import type { TimelineAsset } from '$lib/managers/timeline-manager/types';
 import { preferences } from '$lib/stores/user.store';
+import { waitForWebsocketEvent } from '$lib/stores/websocket';
 import { downloadRequest, withError } from '$lib/utils';
 import { getByteUnitString } from '$lib/utils/byte-units';
 import { getFormatter } from '$lib/utils/i18n';
 import { navigate } from '$lib/utils/navigation';
 import { asQueryString } from '$lib/utils/shared-links';
 import {
+  AssetEditAction,
   AssetVisibility,
   bulkTagAssets,
   createStack,
   deleteAssets,
   deleteStacks,
+  editAsset,
+  getAssetEdits,
   getBaseUrl,
   getDownloadInfo,
   getStack,
+  removeAssetEdits,
   untagAssets,
   updateAsset,
   updateAssets,
+  type AssetEditActionItemDto,
   type AssetResponseDto,
   type AssetTypeEnum,
   type DownloadInfoDto,
   type ExifResponseDto,
+  type RotateParameters,
   type StackResponseDto,
   type UserPreferencesResponseDto,
   type UserResponseDto,
@@ -461,6 +469,101 @@ export const archiveAssets = async (assets: { id: string }[], visibility: AssetV
   }
 
   return ids;
+};
+
+// Generous timeout for the server's AssetEditReadyV1 event after PUT /edits — covers
+// slow thumbnail regeneration on large RAW images.
+const ROTATE_EVENT_TIMEOUT_MS = 30_000;
+
+export type RotatedAssetUpdate = {
+  id: string;
+  thumbhash: string | null;
+  width: number | null;
+  height: number | null;
+  // Per-edit cache buster appended to image URLs. Derived from the server's max edit
+  // `sequence` (monotonically increases per re-edit), or a timestamp when edits were cleared.
+  editVersion: string;
+};
+
+const rotateAsset = async (id: string, deltaDegrees: number): Promise<RotatedAssetUpdate> => {
+  const { edits } = await getAssetEdits({ id });
+
+  // Preserve crop (must be first per server validation) and any mirror edits.
+  const cropEdit = edits.find((e) => e.action === AssetEditAction.Crop);
+  const mirrorEdits = edits.filter((e) => e.action === AssetEditAction.Mirror);
+  const currentAngle =
+    (edits.find((e) => e.action === AssetEditAction.Rotate)?.parameters as RotateParameters | undefined)?.angle ?? 0;
+  const newAngle = (((currentAngle + deltaDegrees) % 360) + 360) % 360;
+
+  const nextEdits: AssetEditActionItemDto[] = [
+    ...(cropEdit ? [{ action: AssetEditAction.Crop, parameters: cropEdit.parameters }] : []),
+    ...mirrorEdits.map((m) => ({ action: AssetEditAction.Mirror, parameters: m.parameters })),
+    ...(newAngle === 0 ? [] : [{ action: AssetEditAction.Rotate, parameters: { angle: newAngle } }]),
+  ];
+
+  // Subscribe BEFORE issuing the request so we don't race the server-side job.
+  const editReady = waitForWebsocketEvent(
+    'AssetEditReadyV1',
+    (event) => event.asset.id === id,
+    ROTATE_EVENT_TIMEOUT_MS,
+  );
+
+  if (nextEdits.length === 0) {
+    await removeAssetEdits({ id });
+  } else {
+    await editAsset({ id, assetEditsCreateDto: { edits: nextEdits } });
+  }
+
+  const [event] = await editReady;
+  const maxSequence = event.edit.reduce((m, e) => Math.max(m, e.sequence), 0);
+  return {
+    id: event.asset.id,
+    thumbhash: event.asset.thumbhash,
+    width: event.asset.width,
+    height: event.asset.height,
+    editVersion: maxSequence > 0 ? String(maxSequence) : `cleared-${Date.now()}`,
+  };
+};
+
+export const rotateAssetsBy = async (
+  assets: TimelineAsset[],
+  deltaDegrees: number,
+): Promise<RotatedAssetUpdate[]> => {
+  const $t = get(t);
+
+  // The server only allows editing still images. Pre-filter the obvious cases.
+  const candidates = assets.filter((asset) => asset.isImage && !asset.livePhotoVideoId);
+  const skippedClient = assets.length - candidates.length;
+
+  if (candidates.length === 0) {
+    toastManager.warning($t('rotate_no_eligible_assets'));
+    return [];
+  }
+
+  const results = await Promise.allSettled(candidates.map((asset) => rotateAsset(asset.id, deltaDegrees)));
+
+  const succeeded: RotatedAssetUpdate[] = [];
+  let failedCount = 0;
+  for (const [index, result] of results.entries()) {
+    if (result.status === 'fulfilled') {
+      succeeded.push(result.value);
+      // Invalidate the asset detail cache so the viewer reloads with the rotated preview.
+      eventManager.emit('AssetEditsApplied', result.value.id);
+    } else {
+      failedCount++;
+      console.error(`[rotateAssetsBy] failed for asset ${candidates[index].id}`, result.reason);
+    }
+  }
+
+  if (succeeded.length > 0) {
+    toastManager.primary($t('rotated_count', { values: { count: succeeded.length } }));
+  }
+  const totalSkipped = skippedClient + failedCount;
+  if (totalSkipped > 0) {
+    toastManager.warning($t('rotate_skipped_count', { values: { count: totalSkipped } }));
+  }
+
+  return succeeded;
 };
 
 export const delay = async (ms: number) => {

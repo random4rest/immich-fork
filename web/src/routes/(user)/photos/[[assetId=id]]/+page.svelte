@@ -12,6 +12,7 @@
   import DownloadAction from '$lib/components/timeline/actions/DownloadAction.svelte';
   import FavoriteAction from '$lib/components/timeline/actions/FavoriteAction.svelte';
   import LinkLivePhotoAction from '$lib/components/timeline/actions/LinkLivePhotoAction.svelte';
+  import RotateAction from '$lib/components/timeline/actions/RotateAction.svelte';
   import SelectAllAssets from '$lib/components/timeline/actions/SelectAllAction.svelte';
   import SetVisibilityAction from '$lib/components/timeline/actions/SetVisibilityAction.svelte';
   import StackAction from '$lib/components/timeline/actions/StackAction.svelte';
@@ -124,6 +125,26 @@
       <FavoriteAction
         removeFavorite={assetMultiSelectManager.isAllFavorite}
         onFavorite={(ids, isFavorite) => timelineManager.update(ids, (asset) => (asset.isFavorite = isFavorite))}
+      />
+
+      <RotateAction
+        onRotated={(updates) =>
+          timelineManager.update(
+            updates.map((u) => u.id),
+            (asset) => {
+              const update = updates.find((u) => u.id === asset.id);
+              if (!update) {
+                return;
+              }
+              if (update.thumbhash !== null) {
+                asset.thumbhash = update.thumbhash;
+              }
+              if (update.width && update.height) {
+                asset.ratio = update.width / update.height;
+              }
+              asset.editVersion = update.editVersion;
+            },
+          )}
       />
 
       <ButtonContextMenu icon={mdiDotsVertical} title={$t('menu')}>
