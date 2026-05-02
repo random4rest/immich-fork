@@ -42,8 +42,10 @@ Branches:
 | Branch | Purpose |
 |---|---|
 | `main` | Mirror of `upstream/main`. Never commit to it directly. |
-| `personal` | Long-lived branch with all custom features. **Default working branch.** |
+| `personal` | Long-lived branch with all custom features. **Default working branch.** Always based on a tagged release (e.g. `vX.Y.Z`), never on `upstream/main`. |
 | `feature/*` | Short-lived branches; merge into `personal` and delete. |
+
+> **Important:** `personal` MUST be rebased onto **release tags** (`vX.Y.Z`), not `upstream/main`. `main` is unreleased WIP and routinely contains bugs that haven't been fixed yet — see §9 for the spinner-of-death incident this rule was learned from.
 
 Commit message convention — **prefix every fork-only commit with `[fork]`**:
 
@@ -181,6 +183,7 @@ If a CI workflow exists in `.github/workflows/` of the fork, the tag push trigge
 cd ~/Projects/immich/immich-src
 
 docker build -t ghcr.io/random4rest/immich-server:personal-v1.XYZ.0-1 \
+  --build-arg BUILD_ID=personal-v1.XYZ.0-1 \
   -f server/Dockerfile .
 
 docker build -t ghcr.io/random4rest/immich-machine-learning:personal-v1.XYZ.0-1-cuda \
@@ -189,6 +192,8 @@ docker build -t ghcr.io/random4rest/immich-machine-learning:personal-v1.XYZ.0-1-
 docker push ghcr.io/random4rest/immich-server:personal-v1.XYZ.0-1
 docker push ghcr.io/random4rest/immich-machine-learning:personal-v1.XYZ.0-1-cuda
 ```
+
+> **`--build-arg BUILD_ID=...` is mandatory.** See §9 for why. The `immich-app/docker-compose.yml` does this automatically via `args: { BUILD_ID: ${IMMICH_VERSION} }`; only standalone `docker build` invocations need it explicit.
 
 ### 5.3 Deploying to production
 
@@ -248,3 +253,51 @@ If something is wrong, roll back instantly by changing `IMMICH_VERSION` back to 
 | Deploy a tag | edit `IMMICH_VERSION` in `immich-app/.env` → `docker compose pull && up -d` |
 | Roll back | edit `IMMICH_VERSION` back → `docker compose up -d` |
 | Read the codebase | `ARCHITECTURE.md` |
+
+---
+
+## 9. Lessons learned
+
+### 9.1 Don't base `personal` on `upstream/main`
+
+`upstream/main` rolls every PR the moment it lands — including `chore!` and `refactor!` commits with breaking changes that haven't gone through any release validation. We learned this the hard way: building the fork from `main` produced a server image that:
+
+- Crashed the web client on load with `TypeError: Cannot read properties of undefined (reading 'env')` (just a spinner forever, see §9.2 below).
+- Applied DB migrations (`<ts>-DropAuditTable`) that don't exist in any tagged release, making rollback to `ghcr.io/immich-app/immich-server:vX.Y.Z` impossible without restoring the DB from backup (`corrupted migrations: previously executed migration <ts>-... is missing`).
+
+**Rule:** rebase `personal` onto release tags only. Use the §4 workflow for each new release.
+
+### 9.2 SvelteKit `__sveltekit_<HASH>` mismatch — the spinner-of-death bug
+
+**Symptom:** web UI loads to the spinning logo and stays there. DevTools console shows `Uncaught (in promise) TypeError: Cannot read properties of undefined (reading 'env')` from a minified chunk. Pretty-printing the chunk reveals:
+
+```javascript
+var d = globalThis.__sveltekit_<HASH1>.env
+```
+
+…where `globalThis.__sveltekit_<HASH1>` is `undefined` because `index.html` initialised a *different* `globalThis.__sveltekit_<HASH2>`.
+
+**Root cause:** `web/svelte.config.js` sets `kit.version.name` to `process.env.IMMICH_BUILD || Date.now().toString()`. SvelteKit hashes `version.name` into the `__sveltekit_<HASH>` global namespace. SvelteKit loads the config file more than once during a build (SSR/prerender pass and client pass), so `Date.now()` evaluates to two different values, producing two different hashes and a non-functional bundle.
+
+**Fix:** always pass a stable `BUILD_ID` to the server image build:
+
+```bash
+docker build -t ... --build-arg BUILD_ID=personal-vX.Y.Z-N -f server/Dockerfile .
+```
+
+The `immich-app/docker-compose.yml` does this automatically via `build.args.BUILD_ID: ${IMMICH_VERSION}`. The Dockerfile's `web` stage exposes it as `ENV IMMICH_BUILD=${BUILD_ID}`, which `svelte.config.js` then prefers over the `Date.now()` fallback.
+
+**Sanity check after every rebuild:**
+
+```bash
+docker exec immich_server sh -c '
+  echo "[index.html]"; grep -o "__sveltekit_[a-z0-9]*" /build/www/index.html | sort -u
+  echo "[js chunks]";  grep -rho "globalThis.__sveltekit_[a-z0-9]*" /build/www/_app | sort -u
+'
+```
+
+Both lists must print **the same single hash**. If they differ, `BUILD_ID` is empty — check that `docker compose config | grep BUILD_ID` shows your version string.
+
+### 9.3 Always `--no-cache` after a config change
+
+Layer caching can pin a stale `web/build` directory even after you change source files or build args. After any change to `svelte.config.js`, `vite.config.ts`, the Dockerfile, or build args, do `docker compose build --no-cache immich-server` once. Routine code changes don't need it.
