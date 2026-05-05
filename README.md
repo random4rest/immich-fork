@@ -7,13 +7,13 @@
 <p align="center">
   My personal homelab build of <a href="https://github.com/immich-app/immich">Immich</a> — the high-performance, self-hosted photo &amp; video manager.
   <br/>
-  Custom features welded on top, upstream releases merged in regularly.
+  <strong>Detached fork:</strong> based on Immich <code>v2.7.5</code>, no longer tracking upstream.
 </p>
 
 <p align="center">
-  <a href="https://github.com/immich-app/immich"><img alt="Forked from immich-app/immich" src="https://img.shields.io/badge/forked%20from-immich--app%2Fimmich-1f6feb?style=for-the-badge&logo=github&logoColor=white"></a>
+  <a href="https://github.com/immich-app/immich"><img alt="Forked from immich-app/immich v2.7.5" src="https://img.shields.io/badge/forked%20from-immich--app%2Fimmich%20v2.7.5-1f6feb?style=for-the-badge&logo=github&logoColor=white"></a>
   <a href="https://opensource.org/license/agpl-v3"><img alt="License AGPL v3" src="https://img.shields.io/badge/license-AGPL%20v3-3F51B5?style=for-the-badge"></a>
-  <a href="https://github.com/random4rest/immich-fork/commits/personal"><img alt="Last commit" src="https://img.shields.io/github/last-commit/random4rest/immich-fork/personal?style=for-the-badge&color=8a3ffc"></a>
+  <a href="https://github.com/random4rest/immich-fork/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/random4rest/immich-fork/main?style=for-the-badge&color=8a3ffc"></a>
   <a href="./CHANGELOG.fork.md"><img alt="Fork changelog" src="https://img.shields.io/badge/fork-changelog-ff6b6b?style=for-the-badge"></a>
 </p>
 
@@ -37,11 +37,11 @@
 
 I run Immich on my own hardware as my full photo library. Vanilla Immich is excellent, but a few personal itches needed scratching:
 
-- I want **custom UI tweaks** that aren't likely to land upstream (or aren't worth the review cycle).
-- I want a **reproducible deploy** where every running container traces back to one git tag.
-- I want to **stay current with official releases** instead of stagnating on a snowflake build.
+- **Custom UI tweaks** I want without waiting for upstream review.
+- **Reproducible deploy** where every running container traces back to one git tag.
+- **Stable codebase** — I'd rather pin to a known-good release and develop incrementally than chase upstream's release treadmill.
 
-This repo is the result. The `personal` branch is what's deployed; everything fork-specific is prefixed `[fork]` in the commit log so it stays trivially auditable when merging upstream releases.
+The fork detached from upstream at the `v2.7.5` release tag (preserved as the `forked-from-immich-v2.7.5` annotated tag). Going forward, all new features and fixes are developed independently here. Security-sensitive CVE fixes in dependencies are handled via `pnpm audit` and selective Dependabot bumps; critical CVEs in Immich code itself can be cherry-picked one-off — see [`AGENTS.md` §4](./AGENTS.md#4-backporting-a-security-fix-from-upstream-rare).
 
 > **Looking for the actual product?** Head to [**immich-app/immich**](https://github.com/immich-app/immich) · [**docs.immich.app**](https://docs.immich.app/) · [**immich.app**](https://immich.app). All credit for the platform goes to the Immich team and contributors. ❤️
 
@@ -52,10 +52,9 @@ This repo is the result. The `personal` branch is what's deployed; everything fo
 > **Full workflow lives in [`AGENTS.md`](./AGENTS.md).** This is the one-screen version.
 
 ```bash
-# 1. Clone the fork (full history; do NOT use --depth=1 — see AGENTS.md §7)
+# 1. Clone the fork (full history; do NOT use --depth=1)
 git clone git@github.com:random4rest/immich-fork.git
 cd immich-fork
-git checkout personal
 
 # 2. Hack on it with hot-reload
 cd docker
@@ -66,29 +65,19 @@ docker compose -f docker-compose.dev.yml up --build
 # ml     -> http://localhost:3003
 
 # 3. Ship a tagged build
-git tag personal-v1.XYZ.0-1
-git push --follow-tags origin personal
-# CI (or your local docker build) produces:
-#   ghcr.io/random4rest/immich-server:personal-v1.XYZ.0-1
-#   ghcr.io/random4rest/immich-machine-learning:personal-v1.XYZ.0-1-cuda
+git tag v1.0.0
+git push --follow-tags origin main
 
 # 4. Roll prod (in the sibling immich-app repo)
 cd ../../immich-app
-sed -i 's/^IMMICH_VERSION=.*/IMMICH_VERSION=personal-v1.XYZ.0-1/' .env
-docker compose pull && docker compose up -d
+sed -i 's/^IMMICH_VERSION=.*/IMMICH_VERSION=v1.0.0/' .env
+docker compose build && docker compose up -d --force-recreate immich-server
 ```
 
 ---
 
-## Staying in sync with upstream
+## Repository docs
 
-Every week-ish:
-
-```bash
-git fetch upstream --tags
-git checkout personal
-git merge vX.Y.Z          # the latest official release tag
-# resolve conflicts, run the dev stack, tag a new build, deploy
-```
-
-Detailed merge procedure (with conflict-resolution strategy) in [`AGENTS.md` §4](./AGENTS.md#4-pulling-new-upstream-releases).
+- [`AGENTS.md`](./AGENTS.md) — full development workflow, branching, build/deploy, gotchas
+- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — codebase tour (server, web, ML, mobile, schema)
+- [`CHANGELOG.fork.md`](./CHANGELOG.fork.md) — every customization since the upstream detachment point

@@ -1,25 +1,34 @@
 # Fork Changelog
 
-All custom features and patches added on top of upstream [immich-app/immich](https://github.com/immich-app/immich) live here.
+All custom features and patches developed in this detached fork of [immich-app/immich](https://github.com/immich-app/immich).
 
-Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Each release section maps to a `personal-vUPSTREAM-N` git tag and the deployed `IMMICH_VERSION` in `immich-app/.env`.
+This fork detached from upstream at the `v2.7.5` release tag (preserved as the `forked-from-immich-v2.7.5` annotated tag). New work since then is independent — see [`AGENTS.md`](./AGENTS.md) for the workflow.
+
+Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Each release section maps to a plain semver git tag (`vX.Y.Z`) and the deployed `IMMICH_VERSION` in `immich-app/.env`.
 
 Conventions:
-- Group entries under **Added / Changed / Fixed / Removed / Docs**.
-- Each bullet links to the relevant `[fork]` commit(s).
-- When merging an upstream release, add a "Synced with upstream vX.Y.Z" line under the new release section.
+- Group entries under **Added / Changed / Fixed / Removed / Security / Docs**.
+- Each bullet links to the relevant commit(s).
+- For the rare upstream cherry-pick (CVE backport), note it under **Security** with the upstream sha.
 
 ---
 
 ## [Unreleased]
 
-Changes on `personal` that have not yet been tagged for deployment.
+Changes on `main` that have not yet been tagged for deployment.
 
 ### Changed
 
-- **`personal` rebased from `upstream/main` onto release tag `v2.7.5`.** This branch was previously based on `upstream/main` (which is unreleased WIP). It is now based on the `v2.7.5` release tag. See `AGENTS.md` §9.1 for why this rule matters, and §9.2 for the spinner-of-death build bug that prompted the rebase.
-  - Old `personal` HEAD preserved at git tag **`personal-v2.7.5-1-mainbase`** and at the deployed Docker image `immich-server:personal-v2.7.5-1`.
-  - **Deployment caveat:** if your DB has migrations applied by a `main`-based build (e.g. `<ts>-DropAuditTable`), v2.7.5 will refuse to start with `corrupted migrations: previously executed migration <name> is missing`. To deploy this rebased `personal`, either restore the DB from a pre-fork backup, or stay on the existing `personal-v2.7.5-1` image until you do. Verified bit-equivalent to the rebuild from this commit, so the running container is safe to leave as-is.
+- **Detached from upstream.** This fork no longer tracks `upstream/main` or future Immich release tags. Going forward all features and fixes are developed independently. The detachment point (Immich `v2.7.5`) is preserved as the annotated tag `forked-from-immich-v2.7.5`. Rationale + new workflow in `AGENTS.md` §1 and §9.1.
+- **Branch model simplified.** `personal` renamed to `main`; the old upstream-mirror `main` branch deleted. There is now exactly one long-lived branch.
+- **`upstream` git remote removed.** Re-add temporarily (`git remote add upstream https://github.com/immich-app/immich.git`) only when you need to look at a specific commit for a security backport — see `AGENTS.md` §4.
+- **Tag scheme switched to plain semver** (`vX.Y.Z`). The legacy `personal-vUPSTREAM-N` scheme is retired. The `personal-v2.7.5-1-mainbase` tag is preserved for the pre-rebase history, and `personal-v2.7.5-1` remains as the deployed-image label until the next build.
+- **`[fork]` commit prefix dropped.** Every commit in this repo is fork code by definition; the prefix added no information. Existing `[fork]` commits in history are unchanged.
+
+### Earlier in this Unreleased cycle
+
+- **`main` rebased from `upstream/main` onto release tag `v2.7.5`** (then renamed to `main`, see above). Old commits preserved at git tag `personal-v2.7.5-1-mainbase`.
+- **Deployment caveat (still applies if you ever rebuild prod):** if your DB has migrations applied by the previous `upstream/main`-based build (e.g. `<ts>-DropAuditTable`), v2.7.5 will refuse to start with `corrupted migrations: previously executed migration <name> is missing`. The currently-deployed image `immich-server:personal-v2.7.5-1` was built from the pre-rebase code and runs against the migrated DB without issue; do NOT rebuild prod until you've either restored the DB from a pre-fork backup or accepted the migration-cleanup procedure in `RUNBOOK.md`.
 
 - **Rotate adapted to `v2.7.5` API surface:**
   - `SyncAssetV2` → `SyncAssetV1` (V2 doesn't exist in v2.7.5; same fields we use)
@@ -49,20 +58,18 @@ Changes on `personal` that have not yet been tagged for deployment.
 
 - **`README.md` — rewritten for the fork.** The upstream Immich README has been replaced with a slim fork-specific landing page (badges, why-this-fork, quick start, upstream-sync section, links to the other fork docs). Upstream README content is no longer carried in this repo; visitors are pointed at [immich-app/immich](https://github.com/immich-app/immich) for the product README. Done deliberately to make merge conflicts on `README.md` near-zero going forward.
 
-### Synced with upstream
+### Detached from upstream
 
-- Base: `v2.7.5` (immich release tag).
+- Base codebase: Immich `v2.7.5` (preserved as `forked-from-immich-v2.7.5` tag). No further upstream merges planned.
 
 ---
 
 ## Template for the next release
 
-When you tag `personal-vX.Y.Z-N`, copy this block under a new heading and fill it in.
+When you tag `vX.Y.Z`, copy this block under a new heading and fill it in.
 
 ```markdown
-## [personal-vX.Y.Z-N] — YYYY-MM-DD
-
-Synced with upstream `vX.Y.Z`.
+## [vX.Y.Z] — YYYY-MM-DD
 
 ### Added
 - ...
@@ -76,27 +83,24 @@ Synced with upstream `vX.Y.Z`.
 ### Removed
 - ...
 
+### Security
+- (rare) Backported upstream `<sha>` — <CVE-id or description>.
+
 ### Docs
 - ...
-
-### Upstream merge notes
-- Conflicts resolved in: `path/to/file` — kept fork's <thing> because <reason>.
-- New upstream feature affecting fork: <description>.
 ```
 
 ---
 
-## How to find every fork commit
+## How to find work since the last release
 
 ```bash
-# All commits prefixed [fork] on the personal branch
-git log --grep '^\[fork\]' --oneline personal
+# All commits since tag vX.Y.Z
+git log --oneline vX.Y.Z..HEAD
 
-# Same, but only commits since the last upstream merge
-git log --grep '^\[fork\]' --oneline upstream/main..personal
+# Diff stat
+git diff --stat vX.Y.Z..HEAD
 
-# Diff stat of fork patches vs upstream main
-git diff --stat upstream/main..personal
+# Find every commit since detachment from upstream
+git log --oneline forked-from-immich-v2.7.5..HEAD
 ```
-
-Use those when writing the next release entry.

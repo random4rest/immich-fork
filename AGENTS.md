@@ -1,12 +1,18 @@
 # AGENTS.md — Working in this Immich fork
 
-This is a personal fork of [immich-app/immich](https://github.com/immich-app/immich). Read this file before making changes, then read `ARCHITECTURE.md` for the codebase tour.
+This is a personal fork of [immich-app/immich](https://github.com/immich-app/immich), **detached from upstream as of `v2.7.5`**. New features and fixes are developed independently here; we do not pull updates from upstream. Read this file before making changes, then read `ARCHITECTURE.md` for the codebase tour.
 
 The goals of this fork are:
 
 1. Self-host Immich on a home PC (LAN + remote access via Tailscale).
-2. Add custom features without losing the ability to pull in upstream releases.
+2. Add custom features tailored to one user, without the constraints of an upstream contribution model.
 3. Stay reproducible: every running container should map back to a specific git tag.
+
+**Detached-fork policy** (decided 2026-05-02):
+
+- We do not merge `upstream/main` or any future Immich release tag.
+- Security-relevant CVE fixes in dependencies (npm packages, base Docker image) may be cherry-picked from upstream **on demand**, but never as a routine merge — see §4.
+- The `upstream` git remote is not configured by default; re-add it only if you need to look at a specific upstream commit.
 
 ---
 
@@ -34,41 +40,52 @@ Sibling docs in this repo:
 
 ```bash
 origin    git@github.com:random4rest/immich-fork.git   # this fork (push here)
-upstream  git@github.com:immich-app/immich.git         # official repo (fetch only, never push)
+```
+
+That's the only remote. The `upstream` remote was removed when we detached. To look at a specific upstream commit (e.g. for a CVE backport), re-add it temporarily:
+
+```bash
+git remote add upstream https://github.com/immich-app/immich.git
+git fetch upstream
+git log upstream/main -- path/to/file       # inspect what they did
+git cherry-pick <upstream-sha>              # if you want to bring it in
+git remote remove upstream
 ```
 
 Branches:
 
 | Branch | Purpose |
 |---|---|
-| `main` | Mirror of `upstream/main`. Never commit to it directly. |
-| `personal` | Long-lived branch with all custom features. **Default working branch.** Always based on a tagged release (e.g. `vX.Y.Z`), never on `upstream/main`. |
-| `feature/*` | Short-lived branches; merge into `personal` and delete. |
+| `main` | The only long-lived branch. **Default working branch.** All custom features land here. |
+| `feature/*` | Short-lived branches for non-trivial work; merge into `main` and delete. Trivial changes can go directly on `main`. |
 
-> **Important:** `personal` MUST be rebased onto **release tags** (`vX.Y.Z`), not `upstream/main`. `main` is unreleased WIP and routinely contains bugs that haven't been fixed yet — see §9 for the spinner-of-death incident this rule was learned from.
+The detachment point is preserved as the annotated tag **`forked-from-immich-v2.7.5`**. The pre-detachment fork history (when we still tracked upstream) is at the tag **`personal-v2.7.5-1-mainbase`**.
 
-Commit message convention — **prefix every fork-only commit with `[fork]`**:
+Commit messages: standard conventional-commit style is fine. There is no special prefix anymore — every commit in this repo is "fork code" by definition.
 
 ```text
-[fork] feat(web): rotate action on photo viewer
-[fork] fix(server): handle missing EXIF on rotate
-[fork] docs: ...
+feat(web): bulk-export selected assets as zip
+fix(server): handle missing EXIF on rotate
+docs: ...
+chore(deps): bump sharp to 0.34.0
 ```
-
-Why: during upstream merges we use `git log --grep '^\[fork\]'` to audit our patches and see what needs reapplying.
 
 ---
 
 ## 3. Implementing a new feature
 
-### 3.1 Branch off `personal`
+### 3.1 Branch off `main`
+
+For non-trivial work:
 
 ```bash
 cd ~/Projects/immich/immich-src
-git checkout personal
-git pull --ff-only origin personal
+git checkout main
+git pull --ff-only origin main
 git checkout -b feature/<short-name>
 ```
+
+For small/trivial changes (typo fix, bumped string, log message), commit directly to `main`. Use your judgement.
 
 ### 3.2 Run the dev stack with hot-reload
 
@@ -120,9 +137,9 @@ See `ARCHITECTURE.md` §2 for the full controller → service → repository flo
 
 ```bash
 git add <files>
-git commit -m "[fork] feat(<area>): <what>"
+git commit -m "feat(<area>): <what>"
 
-git checkout personal
+git checkout main
 git merge --no-ff feature/<short-name>
 git branch -d feature/<short-name>
 ```
@@ -131,36 +148,42 @@ Then **add an entry to [`CHANGELOG.fork.md`](./CHANGELOG.fork.md)** under `[Unre
 
 ---
 
-## 4. Pulling new upstream releases
+## 4. Backporting a security fix from upstream (rare)
 
-Run this whenever a new official release appears.
+We do not routinely follow upstream. But if you become aware of a CVE or critical fix in upstream Immich code or its dependencies, you can cherry-pick a single commit:
 
 ```bash
 cd ~/Projects/immich/immich-src
 
-# 1. Fetch upstream
-git fetch upstream --tags
+# Re-add upstream remote temporarily
+git remote add upstream https://github.com/immich-app/immich.git
+git fetch upstream
 
-# 2. Update the mirror branch
+# Find the fix commit (search by keyword, file, or check upstream's release notes)
+git log upstream/main --oneline -- server/src/path/to/file
+git show <sha>          # inspect
+
+# Cherry-pick onto main (or onto a branch first if it's risky)
 git checkout main
-git merge --ff-only upstream/main
-git push origin main
+git cherry-pick <sha>
+# ... resolve conflicts if any (likely if our code diverged) ...
 
-# 3. Merge into personal (resolve conflicts here, NOT on main)
-git checkout personal
-git merge vX.Y.Z          # the upstream release tag
-# ... resolve conflicts (most should be in fork-touched files only) ...
-git commit                # if merge created a merge commit
+# Tear down the remote when done
+git remote remove upstream
 ```
 
-Conflict-resolution tips:
-- Run `git log --grep '^\[fork\]' upstream/main..personal` to remind yourself what your customizations are.
-- For files where upstream made big rewrites, prefer `git checkout --theirs` then re-apply your `[fork]` changes manually rather than a messy 3-way merge.
-- Run the full dev stack and smoke-test before tagging.
+Add an entry under "Security" in `CHANGELOG.fork.md` describing the upstream commit you backported and why.
 
-### Schema/DB migrations from upstream
+### Dependency security patches (the more common case)
 
-Upstream often ships new migrations under `server/src/schema/migrations/`. They run automatically on next `docker compose up` (Kysely + Postgres advisory lock — see `server/src/main.ts`). **Always back up `${UPLOAD_LOCATION}/backups/` before deploying a release with new migrations.**
+CVEs in npm packages, sharp, exiftool, or the base Docker image are usually reported by `npm audit`, GitHub Dependabot alerts (enabled in repo settings), or the `pnpm audit` command. Bump the offending package in the relevant `package.json`, run `pnpm install` to update the lockfile, test, commit. No upstream involvement needed.
+
+```bash
+cd ~/Projects/immich/immich-src
+pnpm -r audit                     # scan all workspaces
+pnpm -F immich update <pkg>       # update specific package in server
+pnpm install                      # refresh lockfile
+```
 
 ---
 
@@ -168,43 +191,41 @@ Upstream often ships new migrations under `server/src/schema/migrations/`. They 
 
 ### 5.1 Tagging
 
-After merging a new feature or upstream release into `personal`, tag a build. Tag scheme: `personal-<upstream-version>-<bump>`.
+After landing a release-worthy set of changes on `main`, tag a build. **Tag scheme: plain semver `vMAJOR.MINOR.PATCH`** — your project, your numbers. Bump major for breaking changes (DB migration that can't be auto-rolled back, new required env var, etc.), minor for new features, patch for bug fixes.
 
 ```bash
-git tag personal-v1.XYZ.0-1   # first build on top of upstream v1.XYZ.0
-git push --follow-tags origin personal
+git tag v1.0.0
+git push --follow-tags origin main
 ```
+
+The `forked-from-immich-v2.7.5` annotated tag marks the point we detached — leave it alone as a permanent historical reference.
 
 ### 5.2 Building images
 
-If a CI workflow exists in `.github/workflows/` of the fork, the tag push triggers the build automatically. Otherwise build locally:
+Build locally (no CI yet):
 
 ```bash
 cd ~/Projects/immich/immich-src
 
-docker build -t ghcr.io/random4rest/immich-server:personal-v1.XYZ.0-1 \
-  --build-arg BUILD_ID=personal-v1.XYZ.0-1 \
+docker build -t immich-server:v1.0.0 \
+  --build-arg BUILD_ID=v1.0.0 \
   -f server/Dockerfile .
-
-docker build -t ghcr.io/random4rest/immich-machine-learning:personal-v1.XYZ.0-1-cuda \
-  --build-arg DEVICE=cuda machine-learning
-
-docker push ghcr.io/random4rest/immich-server:personal-v1.XYZ.0-1
-docker push ghcr.io/random4rest/immich-machine-learning:personal-v1.XYZ.0-1-cuda
 ```
 
 > **`--build-arg BUILD_ID=...` is mandatory.** See §9 for why. The `immich-app/docker-compose.yml` does this automatically via `args: { BUILD_ID: ${IMMICH_VERSION} }`; only standalone `docker build` invocations need it explicit.
 
+ML uses the upstream `-cuda` image unchanged (we don't fork ML); pinned via `IMMICH_ML_VERSION` separately in `immich-app/.env`.
+
 ### 5.3 Deploying to production
 
-`immich-app/.env` has a single `IMMICH_VERSION` variable. Bump it and roll the stack:
+`immich-app/.env` has an `IMMICH_VERSION` variable. Bump it and roll the stack:
 
 ```bash
 cd ~/Projects/immich/immich-app
 
-# edit IMMICH_VERSION=personal-v1.XYZ.0-1 in .env
-docker compose pull
-docker compose up -d
+# edit IMMICH_VERSION=v1.0.0 in .env
+docker compose build immich-server
+docker compose up -d --force-recreate immich-server
 docker image prune -f
 ```
 
@@ -212,11 +233,17 @@ docker image prune -f
 
 ```bash
 docker compose ps                                  # everything running
-docker logs immich_server --tail=50               # no startup errors
-curl -s http://localhost:2283/api/server/ping     # {"res":"pong"}
+docker compose logs --tail=50 immich-server        # no startup errors
+curl -s http://localhost:2283/api/server/ping      # {"res":"pong"}
+
+# SvelteKit hash sanity-check (see §9.2)
+docker exec immich_server sh -c '
+  echo "[index.html]"; grep -o "__sveltekit_[a-z0-9]*" /build/www/index.html | sort -u
+  echo "[js chunks]";  grep -rho "globalThis.__sveltekit_[a-z0-9]*" /build/www/_app | sort -u
+'
 ```
 
-If something is wrong, roll back instantly by changing `IMMICH_VERSION` back to the previous tag and `docker compose up -d` again.
+If something is wrong, roll back by changing `IMMICH_VERSION` back to the previous tag and rebuild. **DB caveat:** if the new version added a migration, rolling back the image won't roll back the schema; restore from `${UPLOAD_LOCATION}/backups/` instead.
 
 ---
 
@@ -229,15 +256,14 @@ If something is wrong, roll back instantly by changing `IMMICH_VERSION` back to 
 
 ---
 
-## 7. Push & SSH gotchas (lessons from setup)
+## 7. Push & SSH gotchas
 
-- `origin` uses SSH; the SSH key is passphrase-protected. Run `eval "$(ssh-agent -s)" && ssh-add ~/.ssh/id_ed25519` once per shell session.
-- This repo was originally cloned shallow (`--depth=1`). Pushing a new branch to `origin` will fail with `remote unpack failed` until the repo is unshallowed:
+- `origin` uses SSH; the SSH key is passphrase-protected. Run `eval "$(ssh-agent -s)" && ssh-add ~/.ssh/id_ed25519` once per shell session before pushing.
+- Alternative: switch the remote to HTTPS + Personal Access Token if SSH is annoying:
   ```bash
-  git -c "url.https://github.com/.insteadOf=git@github.com:" fetch --unshallow upstream
+  git remote set-url origin https://github.com/random4rest/immich-fork.git
+  # next push will prompt for username + PAT
   ```
-  (Public repo over HTTPS, no auth needed.) This only has to be done once.
-- Never push to `upstream` — that remote is configured with `pushurl=DISABLE` to make it impossible by accident.
 
 ---
 
@@ -248,24 +274,30 @@ If something is wrong, roll back instantly by changing `IMMICH_VERSION` back to 
 | Start dev stack | `cd immich-src/docker && docker compose -f docker-compose.dev.yml up --build` |
 | Start prod stack | `cd immich-app && docker compose up -d` |
 | Stop prod stack | `cd immich-app && docker compose down` |
-| Pull upstream release | `git fetch upstream --tags && git checkout personal && git merge vX.Y.Z` |
-| Tag a build | `git tag personal-vX.Y.Z-N && git push --follow-tags origin personal` |
-| Deploy a tag | edit `IMMICH_VERSION` in `immich-app/.env` → `docker compose pull && up -d` |
-| Roll back | edit `IMMICH_VERSION` back → `docker compose up -d` |
+| Tag a release | `git tag vX.Y.Z && git push --follow-tags origin main` |
+| Build + deploy | edit `IMMICH_VERSION` in `immich-app/.env` → `docker compose build && docker compose up -d --force-recreate immich-server` |
+| Roll back image | edit `IMMICH_VERSION` back → rebuild + recreate (note DB caveat in §5.3) |
+| Backport a CVE fix from upstream | see §4 |
 | Read the codebase | `ARCHITECTURE.md` |
 
 ---
 
 ## 9. Lessons learned
 
-### 9.1 Don't base `personal` on `upstream/main`
+### 9.1 Why we detached from upstream
 
-`upstream/main` rolls every PR the moment it lands — including `chore!` and `refactor!` commits with breaking changes that haven't gone through any release validation. We learned this the hard way: building the fork from `main` produced a server image that:
+We initially tried to track `upstream/main` so we could pull in new features as they landed. That immediately bit us:
 
-- Crashed the web client on load with `TypeError: Cannot read properties of undefined (reading 'env')` (just a spinner forever, see §9.2 below).
-- Applied DB migrations (`<ts>-DropAuditTable`) that don't exist in any tagged release, making rollback to `ghcr.io/immich-app/immich-server:vX.Y.Z` impossible without restoring the DB from backup (`corrupted migrations: previously executed migration <ts>-... is missing`).
+- `upstream/main` rolls every PR the moment it lands, including `chore!` and `refactor!` commits with breaking changes that haven't gone through any release validation. Building from `main` produced a server image that crashed the web client on load with `TypeError: Cannot read properties of undefined (reading 'env')` (just a spinner forever, see §9.2).
+- It applied DB migrations (`<ts>-DropAuditTable`) that don't exist in any tagged release, making rollback to `ghcr.io/immich-app/immich-server:vX.Y.Z` impossible without restoring the DB from backup (`corrupted migrations: previously executed migration <ts>-... is missing`).
 
-**Rule:** rebase `personal` onto release tags only. Use the §4 workflow for each new release.
+We then tried "rebase onto release tags" instead. That works, but in practice:
+
+- Even release tags carry breaking changes (`chore!`, `refactor!`) that conflict with our customizations every cycle.
+- Resolving conflicts requires understanding upstream's intent, which is non-trivial for a one-person fork.
+- The upside (new features, security patches in Immich code) is small for a single-user home server already getting most of what we want.
+
+So we chose the **detached fork** model: stop merging upstream entirely, pin to the v2.7.5 codebase, develop our own features. Security patches in dependencies are handled via `pnpm audit` / Dependabot (see §4). Critical CVEs in Immich code itself can be backported as one-off cherry-picks from upstream.
 
 ### 9.2 SvelteKit `__sveltekit_<HASH>` mismatch — the spinner-of-death bug
 
